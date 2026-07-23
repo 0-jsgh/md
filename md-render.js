@@ -83,7 +83,7 @@
       --overlay-bg:  rgba(15, 17, 23, .88);
       --danger:      #f87171;
       --radius:      8px;
-      --max-w:       780px;
+      --max-w:       840px;
       --toolbar-h:   52px;
 
       --hl-h1: #a78bfa; --hl-h2: #5eead4; --hl-h3: #fbbf24;
@@ -101,6 +101,9 @@
       --tok-attr:     #fbbf24;
       --tok-property: #5eead4;
       --tok-punct:    #8b90a8;
+
+      --task-done:        #22c55e;
+      --task-done-bg:     rgba(38, 217, 103, 0.1);
     }
 
     html[data-theme="light"] {
@@ -133,6 +136,9 @@
       --tok-attr:     #b45309;
       --tok-property: #0f766e;
       --tok-punct:    #6b7080;
+
+      --task-done:        #16a34a;
+      --task-done-bg:     rgba(22, 163, 74, .14);
     }
 
     html {
@@ -207,7 +213,7 @@
       padding: 3rem 1.5rem 6rem;
       min-height: calc(100vh - var(--toolbar-h));
     }
-    #md-workspace.editing { max-width: 100%; padding: 1.25rem 1.5rem 2rem; }
+    #md-workspace.editing { max-width: 100%; padding: 1.25rem 1.5rem 2rem; height:10vh;}
 
     #md-content { display: block; }
     #md-editor-wrap { display: none; }
@@ -357,6 +363,15 @@
     ul li::marker { color: var(--accent); }
     ol li::marker { color: var(--muted); font-size: .9em; }
 
+    li.task-item { list-style: none; }
+    li.task-done > input[type="checkbox"] { accent-color: var(--task-done); }
+    li.task-done {
+      background: var(--task-done-bg);
+      border-radius: 4px;
+      padding: .12em .5em;
+      margin-left: -.5em;
+    }
+
     blockquote {
       border-left: 3px solid var(--accent);
       background: var(--surface);
@@ -448,6 +463,7 @@
     }
 
     input[type="checkbox"] { accent-color: var(--accent); margin-right: .45em; }
+    input[type="checkbox"]:checked { accent-color: var(--task-done); }
 
     .katex { color: var(--text) !important; font-size: 1.05em; }
     .katex-display { margin: 1.5em 0; overflow-x: auto; overflow-y: hidden; }
@@ -474,6 +490,7 @@
         --accent: #5b3fd1; --accent2: #0e8f6d; --text: #1a1d27;
         --muted: #5b6072; --code-bg: #f6f6f8; --inline-bg: #eef0f5;
         --heading: #101218;
+        --task-done: #16a34a; --task-done-bg: rgba(22, 163, 74, .14);
       }
       #md-toolbar, #md-editor-wrap, #md-drop-overlay { display: none !important; }
       #md-workspace, #md-workspace.editing { max-width: 100% !important; padding: 0 !important; }
@@ -727,6 +744,28 @@
       return "<pre" + la + "><code>" + highlighted + "</code></pre>\n";
     };
 
+    renderer.listitem = function (token, task, checked) {
+      // Compatibilidad con dos firmas de marked:
+      //  - v5+: listitem(token) donde token = { text, task, checked, ... }
+      //  - v4-: listitem(text, task, checked) con "text" ya renderizado
+      let text, isTask, isChecked;
+      if (token !== null && typeof token === "object" && !Array.isArray(token)) {
+        isTask = !!token.task;
+        isChecked = !!token.checked;
+        text = typeof token.text === "string" ? token.text : "";
+        if (this && this.parser && token.tokens) {
+          text = this.parser.parse(token.tokens, !!token.loose);
+        }
+      } else {
+        text = token;
+        isTask = !!task;
+        isChecked = !!checked;
+      }
+      if (!isTask) return "<li>" + text + "</li>\n";
+      const cls = isChecked ? "task-item task-done" : "task-item task-pending";
+      return '<li class="' + cls + '">' + text + "</li>\n";
+    };
+
     marked.use({ renderer, gfm: true, breaks: false });
 
     let html = marked.parse(safe);
@@ -907,7 +946,7 @@
   }
 
   /* ─── Tab / Shift+Tab dentro del editor: indentar en vez de cambiar de foco ─── */
-  const TAB_STR = "  "; // 2 espacios
+  const TAB_STR = "   "; // 3 espacios
 
   function handleEditorTabKey(e) {
     if (e.key !== "Tab") return;
@@ -939,7 +978,7 @@
 
     const newLines = lines.map((line, i) => {
       if (e.shiftKey) {
-        const m = line.match(/^(?: {1,2}|\t)/);
+        const m = line.match(/^(?: {1,3}|\t)/);
         const removed = m ? m[0].length : 0;
         if (i === 0) firstLineDelta = -removed;
         totalDelta -= removed;
