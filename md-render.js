@@ -787,7 +787,7 @@
         continue;
       }
 
-      const fenceStart = line.match(/^ {0,3}```([\w+-]*)\s*$/);
+      const fenceStart = line.match(/^ {0,3}```[ \t]*([\w+-]*)\s*$/);
       if (fenceStart) {
         outLines.push(`<span class="hl-fence">${escapeHtml(line)}</span>`);
         fenceLang = fenceStart[1] || "";
@@ -901,8 +901,63 @@
     editorEl.addEventListener("scroll", syncEditorScroll);
     editorEl.addEventListener("click", updateLineNumbers);
     editorEl.addEventListener("keyup", updateLineNumbers);
+    editorEl.addEventListener("keydown", handleEditorTabKey);
 
     setupDragAndDrop();
+  }
+
+  /* ─── Tab / Shift+Tab dentro del editor: indentar en vez de cambiar de foco ─── */
+  const TAB_STR = "  "; // 2 espacios
+
+  function handleEditorTabKey(e) {
+    if (e.key !== "Tab") return;
+    e.preventDefault();
+
+    const value = editorEl.value;
+    const start = editorEl.selectionStart;
+    const end = editorEl.selectionEnd;
+    const multiline = value.slice(start, end).includes("\n");
+
+    if (!e.shiftKey && !multiline) {
+      // Inserción simple en la posición del cursor
+      editorEl.value = value.slice(0, start) + TAB_STR + value.slice(end);
+      editorEl.selectionStart = editorEl.selectionEnd = start + TAB_STR.length;
+      currentRaw = editorEl.value;
+      updateHighlight();
+      updateFilenameLabel();
+      return;
+    }
+
+    // Indentar/desindentar todas las líneas tocadas por la selección
+    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    let lineEnd = value.indexOf("\n", end);
+    if (lineEnd === -1) lineEnd = value.length;
+
+    const lines = value.slice(lineStart, lineEnd).split("\n");
+    let firstLineDelta = 0;
+    let totalDelta = 0;
+
+    const newLines = lines.map((line, i) => {
+      if (e.shiftKey) {
+        const m = line.match(/^(?: {1,2}|\t)/);
+        const removed = m ? m[0].length : 0;
+        if (i === 0) firstLineDelta = -removed;
+        totalDelta -= removed;
+        return line.slice(removed);
+      }
+      if (i === 0) firstLineDelta = TAB_STR.length;
+      totalDelta += TAB_STR.length;
+      return TAB_STR + line;
+    });
+
+    const newBlock = newLines.join("\n");
+    editorEl.value = value.slice(0, lineStart) + newBlock + value.slice(lineEnd);
+    editorEl.selectionStart = Math.max(lineStart, start + firstLineDelta);
+    editorEl.selectionEnd = end + totalDelta;
+
+    currentRaw = editorEl.value;
+    updateHighlight();
+    updateFilenameLabel();
   }
 
   function setupDragAndDrop() {
