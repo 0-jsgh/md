@@ -1016,6 +1016,7 @@
   let currentRaw = "";
   let currentFilename = null;
   let mode = "view";      // "view" | "edit"
+  let lastViewScrollY = 0; // recuerda el scroll de la vista previa al pasar a editar
   let savedRaw = "";       // último contenido guardado o cargado
   let currentHeadings = []; // [{ level, text, line }] extraído del raw actual
 
@@ -1122,6 +1123,14 @@
     editorEl.addEventListener("click", updateLineNumbers);
     editorEl.addEventListener("keyup", updateLineNumbers);
     editorEl.addEventListener("keydown", handleEditorTabKey);
+
+    document.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === ".") {
+        if (toggleBtn.disabled) return;
+        e.preventDefault();
+        toggleMode();
+      }
+    });
 
     setupDragAndDrop();
     setupCopyButtons();
@@ -1346,6 +1355,7 @@
       currentFilename = "document.md";
       savedRaw = "";
     }
+    lastViewScrollY = window.scrollY;
     mode = "edit";
     editorEl.value = currentRaw;
     updateHighlight();
@@ -1366,6 +1376,9 @@
     updateFilenameLabel();
     await renderPreview();
     updateToc();
+    // Restaura la posición de scroll que tenía la vista previa antes de editar,
+    // en el siguiente frame para asegurar que el contenido ya esté pintado.
+    requestAnimationFrame(() => window.scrollTo(0, lastViewScrollY));
   }
 
   async function toggleMode() {
