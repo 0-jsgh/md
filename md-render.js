@@ -1,5 +1,5 @@
 /**
- * md-render.js  —  v6 offline (resaltado extendido, favicon, indicador de cambios)
+ * md-render.js  —  v7 offline (Index + Light/Dark flotantes, exportar a HTML)
  * ─────────────────────────────────────────────────────────────────────────────
  * Uso en el HTML (igual que antes, el contenido embebido es opcional):
  *
@@ -7,6 +7,17 @@
  *     # Tu contenido aquí
  *   </script>
  *   <script src="md-render.js"></script>
+ *
+ * Novedades v7 (sobre v6):
+ *   - Los botones "Index" (navegación por títulos) y "Light/Dark" ahora son
+ *     flotantes, en la esquina inferior derecha.
+ *   - Nuevo botón "HTML" en la barra: exporta el documento actual como un
+ *     .html autónomo de solo lectura (pide un título, embebe el markdown
+ *     crudo en un <script type="text/markdown"> — igual que este archivo —
+ *     y carga md-viewer.js al mismo nivel). Ese archivo exportado se abre
+ *     con md-viewer.js — un visor liviano sin edición, generado aparte —
+ *     que debe copiarse junto al .html exportado (mismo nivel), junto con
+ *     la carpeta libs/.
  *
  * Novedades v6 (sobre v5):
  *   - Resaltado del editor ampliado: además de títulos y separadores, ahora
@@ -29,6 +40,7 @@
  *   📁 tu-carpeta/
  *   ├── tu-doc.html
  *   ├── md-render.js
+ *   ├── md-viewer.js    ← usado por los .html exportados con "HTML"
  *   └── 📁 libs/
  *       ├── marked.min.js
  *       ├── katex.min.js
@@ -203,8 +215,65 @@
     #md-toggle-btn { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
     #md-save-btn { background: var(--accent2); color: #0f1117; }
     #md-export-btn { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-    #md-mode-btn { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    #md-export-html-btn { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
     #md-file-input { display: none; }
+
+    /* ── Botones flotantes (Index + Light/Dark), esquina inferior derecha ── */
+    .md-floating-btns {
+      position: fixed;
+      bottom: 1.5em;
+      right: 1.5em;
+      display: flex;
+      gap: .6em;
+      z-index: 70;
+    }
+    .md-floating-btns .md-btn {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, .35);
+    }
+
+    /* ── Panel de navegación por títulos (TOC), sobre el botón Index ── */
+    #md-toc-panel {
+      position: fixed;
+      bottom: 4.6em;
+      right: 1.5em;
+      width: 260px;
+      max-height: min(70vh, 480px);
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .3);
+      padding: .4em 0;
+      z-index: 60;
+      display: none;
+    }
+    #md-toc-panel.open { display: block; }
+    .md-toc-empty { padding: .8em 1em; color: var(--muted); font-size: .85rem; }
+    .md-toc-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: .85rem;
+      padding: .42em 1em;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .md-toc-item:hover { background: var(--inline-bg); color: var(--accent); }
+    .md-toc-item[data-level="1"] { font-weight: 700; }
+    .md-toc-item[data-level="2"] { padding-left: 1.7em; }
+    .md-toc-item[data-level="3"] { padding-left: 2.5em; font-size: .82rem; color: var(--muted); }
+    .md-toc-item[data-level="4"] { padding-left: 3.3em; font-size: .8rem;  color: var(--muted); }
+    .md-toc-item[data-level="5"] { padding-left: 4.1em; font-size: .78rem; color: var(--muted); }
+    .md-toc-item[data-level="6"] { padding-left: 4.9em; font-size: .76rem; color: var(--muted); }
 
     /* ── Contenedor del contenido ── */
     #md-workspace {
@@ -237,7 +306,7 @@
       margin: 0;
       padding: 1.2em 1.4em;
       font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
-      font-size: .9rem;
+      font-size: 1rem;
       line-height: 1.6;
       tab-size: 2;
       white-space: pre-wrap;
@@ -270,7 +339,7 @@
       margin: 0;
       padding: 1.2em .6em 1.2em 0;
       font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
-      font-size: .9rem;
+      font-size: 1rem;
       line-height: 1.6;
       text-align: right;
       color: var(--muted);
@@ -314,7 +383,7 @@
     }
     .md-empty .md-empty-icon { font-size: 2.5rem; opacity: .6; }
     .md-empty h2 { color: var(--text); font-size: 1.2rem; margin: 0; border: none; padding: 0; }
-    .md-empty p { margin: 0; font-size: .9rem; max-width: 32em; }
+    .md-empty p { margin: 0; font-size: 1rem; max-width: 32em; }
 
     /* ── Overlay al arrastrar un archivo ── */
     #md-drop-overlay {
@@ -393,13 +462,50 @@
       border: 1px solid var(--border);
     }
 
-    pre {
+    .md-code-block {
       background: var(--code-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
+      margin: 1.5em 0;
+      overflow: hidden;
+    }
+    .md-code-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: .75em;
+      padding: .45em .9em;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .md-code-lang {
+      margin-right: auto;
+      font-family: ui-monospace, monospace;
+      font-size: .7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .md-copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .4em;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .25em .7em;
+      font-size: .72rem;
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+    .md-copy-btn:hover { color: var(--text); border-color: var(--accent); }
+    .md-copy-btn.md-copied { color: var(--accent2); border-color: var(--accent2); }
+    pre {
       padding: 1.2em 1.4em;
       overflow-x: auto;
-      margin: 1.5em 0;
       position: relative;
     }
     pre code {
@@ -409,17 +515,6 @@
       color: var(--text);
       font-size: .875rem;
       line-height: 1.65;
-    }
-    pre[data-lang]::before {
-      content: attr(data-lang);
-      position: absolute;
-      top: .55em;
-      right: .9em;
-      font-family: ui-monospace, monospace;
-      font-size: .7rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: .08em;
     }
 
     .tok-comment  { color: var(--tok-comment); font-style: italic; }
@@ -492,7 +587,7 @@
         --heading: #101218;
         --task-done: #16a34a; --task-done-bg: rgba(22, 163, 74, .14);
       }
-      #md-toolbar, #md-editor-wrap, #md-drop-overlay { display: none !important; }
+      #md-toolbar, #md-editor-wrap, #md-drop-overlay, .md-floating-btns, #md-toc-panel { display: none !important; }
       #md-workspace, #md-workspace.editing { max-width: 100% !important; padding: 0 !important; }
       body { background: #fff !important; }
       pre, table, blockquote, img { break-inside: avoid; }
@@ -715,6 +810,7 @@
   ══════════════════════════════════════════════════════ */
   function renderMarkdown(raw) {
     const stash = [];
+    let headingCounter = 0;
 
     const safe = raw
       .replace(/\$\$([\s\S]*?)\$\$/g, (_, m) => {
@@ -740,8 +836,16 @@
         lang = infostring || "";
       }
       const highlighted = highlightCode(text, lang);
-      const la = lang ? ' data-lang="' + lang.split(/\s+/)[0] + '"' : "";
-      return "<pre" + la + "><code>" + highlighted + "</code></pre>\n";
+      const langLabel = lang ? lang.split(/\s+/)[0] : "";
+      const langSpan = langLabel ? '<span class="md-code-lang">' + escapeHtml(langLabel) + "</span>" : "";
+      return (
+        '<div class="md-code-block">' +
+        '<div class="md-code-toolbar">' + langSpan +
+        '<button type="button" class="md-copy-btn" data-copy-code>Copy</button>' +
+        "</div>" +
+        "<pre><code>" + highlighted + "</code></pre>" +
+        "</div>\n"
+      );
     };
 
     renderer.listitem = function (token, task, checked) {
@@ -766,6 +870,51 @@
       return '<li class="' + cls + '">' + text + "</li>\n";
     };
 
+    renderer.heading = function (token, level, raw2) {
+      // Compatibilidad con dos firmas de marked:
+      //  - v5+: heading(token) donde token = { text, depth, tokens }
+      //  - v4-: heading(text, level, raw, slugger)
+      let text, depth;
+      if (token !== null && typeof token === "object" && !Array.isArray(token)) {
+        depth = token.depth;
+        text = this && this.parser && token.tokens ? this.parser.parseInline(token.tokens) : token.text;
+      } else {
+        text = token;
+        depth = level;
+      }
+      const id = "md-heading-" + headingCounter++;
+      return '<h' + depth + ' id="' + id + '">' + text + "</h" + depth + ">\n";
+    };
+
+    renderer.image = function (token, title, text) {
+      // Compatibilidad con dos firmas de marked:
+      //  - v5+: image(token) donde token = { href, title, text }
+      //  - v4-: image(href, title, text)
+      let href, imgTitle, altText;
+      if (token !== null && typeof token === "object") {
+        href = token.href;
+        imgTitle = token.title;
+        altText = token.text;
+      } else {
+        href = token;
+        imgTitle = title;
+        altText = text;
+      }
+      altText = altText || "";
+
+      // Sintaxis extendida: ![Descripción | 100](ruta) → ancho en px
+      let width = null;
+      const m = altText.match(/^([\s\S]*)\|\s*(\d+)\s*$/);
+      if (m) {
+        altText = m[1].trim();
+        width = m[2];
+      }
+
+      const styleAttr = width ? ' style="width:' + width + 'px;"' : "";
+      const titleAttr = imgTitle ? ' title="' + escapeAttr(imgTitle) + '"' : "";
+      return '<img src="' + escapeAttr(href || "") + '" alt="' + escapeAttr(altText) + '"' + titleAttr + styleAttr + ">";
+    };
+
     marked.use({ renderer, gfm: true, breaks: false });
 
     let html = marked.parse(safe);
@@ -775,6 +924,10 @@
 
   function escapeHtml(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, "&quot;");
   }
 
   /* ─── Resaltado del editor: títulos, separadores, LaTeX, énfasis y bloques de código ─── */
@@ -857,13 +1010,14 @@
      5. ESTADO + UI
   ══════════════════════════════════════════════════════ */
   let workspaceEl, contentEl, editorWrapEl, editorEl, highlightEl, linenumbersEl;
-  let filenameEl, fileInputEl, dropOverlayEl;
-  let openBtn, toggleBtn, saveBtn, exportBtn, modeBtn;
+  let filenameEl, fileInputEl, dropOverlayEl, tocPanelEl;
+  let openBtn, toggleBtn, saveBtn, exportBtn, exportHtmlBtn, modeBtn, tocBtn;
 
   let currentRaw = "";
   let currentFilename = null;
   let mode = "view";      // "view" | "edit"
   let savedRaw = "";       // último contenido guardado o cargado
+  let currentHeadings = []; // [{ level, text, line }] extraído del raw actual
 
   function buildLayout() {
     document.body.innerHTML = "";
@@ -880,11 +1034,19 @@
       <div class="md-toolbar-group md-toolbar-right">
         <button id="md-save-btn" class="md-btn" type="button" disabled>Save</button>
         <button id="md-export-btn" class="md-btn" type="button" disabled>PDF</button>
-        <button id="md-mode-btn" class="md-btn" type="button">Light</button>
+        <button id="md-export-html-btn" class="md-btn" type="button" disabled>HTML</button>
       </div>
       <input type="file" id="md-file-input" accept=".md,.markdown,.mdown,.mkd,text/markdown,text/plain" />
     `;
     document.body.appendChild(toolbar);
+
+    const floatingBtns = document.createElement("div");
+    floatingBtns.className = "md-floating-btns";
+    floatingBtns.innerHTML = `
+      <button id="md-toc-btn" class="md-btn" type="button" disabled title="Navegar por títulos">Index</button>
+      <button id="md-mode-btn" class="md-btn" type="button">Light</button>
+    `;
+    document.body.appendChild(floatingBtns);
 
     workspaceEl = document.createElement("div");
     workspaceEl.id = "md-workspace";
@@ -912,12 +1074,19 @@
     document.body.appendChild(overlay);
     dropOverlayEl = overlay;
 
+    const tocPanel = document.createElement("div");
+    tocPanel.id = "md-toc-panel";
+    document.body.appendChild(tocPanel);
+    tocPanelEl = tocPanel;
+
     filenameEl = document.getElementById("md-filename");
     fileInputEl = document.getElementById("md-file-input");
     openBtn = document.getElementById("md-open-btn");
     toggleBtn = document.getElementById("md-toggle-btn");
+    tocBtn = document.getElementById("md-toc-btn");
     saveBtn = document.getElementById("md-save-btn");
     exportBtn = document.getElementById("md-export-btn");
+    exportHtmlBtn = document.getElementById("md-export-html-btn");
     modeBtn = document.getElementById("md-mode-btn");
 
     openBtn.addEventListener("click", () => fileInputEl.click());
@@ -930,12 +1099,24 @@
     toggleBtn.addEventListener("click", toggleMode);
     saveBtn.addEventListener("click", saveCurrentFile);
     exportBtn.addEventListener("click", exportPdf);
+    exportHtmlBtn.addEventListener("click", exportHtml);
     modeBtn.addEventListener("click", toggleTheme);
+
+    tocBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      tocPanelEl.classList.toggle("open");
+    });
+    tocPanelEl.addEventListener("click", (e) => {
+      const item = e.target.closest(".md-toc-item");
+      if (!item) return;
+      goToHeading(+item.dataset.index);
+    });
 
     editorEl.addEventListener("input", () => {
       currentRaw = editorEl.value;
       updateHighlight();
       updateFilenameLabel();
+      updateToc();
     });
     editorEl.addEventListener("scroll", syncEditorScroll);
     editorEl.addEventListener("click", updateLineNumbers);
@@ -943,6 +1124,53 @@
     editorEl.addEventListener("keydown", handleEditorTabKey);
 
     setupDragAndDrop();
+    setupCopyButtons();
+  }
+
+  /* ─── Botón de copiar en bloques de código (vista previa) ─── */
+  function setupCopyButtons() {
+    contentEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-copy-code]");
+      if (!btn || !contentEl.contains(btn)) return;
+      const codeEl = btn.closest(".md-code-block").querySelector("code");
+      const text = codeEl ? codeEl.textContent : "";
+      copyText(text)
+        .then(() => showCopyFeedback(btn, true))
+        .catch(() => showCopyFeedback(btn, false));
+    });
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        ok ? resolve() : reject(new Error("execCommand copy failed"));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function showCopyFeedback(btn, ok) {
+    const original = btn.textContent;
+    btn.textContent = ok ? "Copied!" : "Error";
+    btn.classList.toggle("md-copied", ok);
+    clearTimeout(btn._copyResetTimer);
+    btn._copyResetTimer = setTimeout(() => {
+      btn.textContent = original;
+      btn.classList.remove("md-copied");
+    }, 1500);
   }
 
   /* ─── Tab / Shift+Tab dentro del editor: indentar en vez de cambiar de foco ─── */
@@ -1051,6 +1279,10 @@
       </div>`;
     filenameEl.innerHTML = "";
     document.title = DEFAULT_TITLE;
+    currentHeadings = [];
+    tocBtn.disabled = true;
+    tocPanelEl.innerHTML = "";
+    tocPanelEl.classList.remove("open");
   }
 
   /* ══════════════════════════════════════════════════════
@@ -1100,8 +1332,10 @@
     toggleBtn.disabled = false;
     saveBtn.disabled = false;
     exportBtn.disabled = false;
+    exportHtmlBtn.disabled = false;
     toggleBtn.textContent = "Edit";
     await renderPreview();
+    updateToc();
   }
 
   /* ══════════════════════════════════════════════════════
@@ -1119,6 +1353,7 @@
     toggleBtn.textContent = "View";
     saveBtn.disabled = false;
     exportBtn.disabled = false;
+    exportHtmlBtn.disabled = false;
     updateFilenameLabel();
     editorEl.focus();
   }
@@ -1130,6 +1365,7 @@
     toggleBtn.textContent = "Edit";
     updateFilenameLabel();
     await renderPreview();
+    updateToc();
   }
 
   async function toggleMode() {
@@ -1169,6 +1405,73 @@
     linenumbersEl.style.width = gutterWidth;
     highlightEl.style.left = gutterWidth;
     editorEl.style.left = gutterWidth;
+  }
+
+  /* ─── Navegación entre títulos (TOC): extracción, panel y salto ─── */
+  function extractHeadings(raw) {
+    // Solo títulos ATX (#, ##, ...) fuera de bloques de código con ```,
+    // igual criterio que usa el resaltado del editor.
+    const lines = raw.split("\n");
+    const headings = [];
+    let inFence = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^ {0,3}```/.test(line)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
+      const m = line.match(/^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/);
+      if (m) {
+        headings.push({ level: m[1].length, text: m[2].trim() || "(sin título)", line: i });
+      }
+    }
+    return headings;
+  }
+
+  function updateToc() {
+    currentHeadings = extractHeadings(currentRaw);
+    if (!currentHeadings.length) {
+      tocBtn.disabled = true;
+      tocPanelEl.innerHTML = '<div class="md-toc-empty">Sin títulos</div>';
+      tocPanelEl.classList.remove("open");
+      return;
+    }
+    tocBtn.disabled = false;
+    tocPanelEl.innerHTML = currentHeadings
+      .map(
+        (h, i) =>
+          '<button type="button" class="md-toc-item" data-level="' + h.level + '" data-index="' + i + '">' +
+          escapeHtml(h.text) +
+          "</button>"
+      )
+      .join("");
+  }
+
+  function goToHeading(index) {
+    const heading = currentHeadings[index];
+    if (!heading) return;
+    if (mode === "view") {
+      const el = contentEl.querySelector("#md-heading-" + index);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      const lines = editorEl.value.split("\n");
+      let pos = 0;
+      for (let i = 0; i < heading.line; i++) pos += lines[i].length + 1;
+      editorEl.focus();
+      editorEl.selectionStart = editorEl.selectionEnd = pos;
+      updateLineNumbers();
+      scrollEditorToLine(heading.line);
+    }
+  }
+
+  function scrollEditorToLine(lineIndex) {
+    const style = getComputedStyle(editorEl);
+    const lineHeight = parseFloat(style.lineHeight) || 24;
+    const paddingTop = parseFloat(style.paddingTop) || 0;
+    const target = paddingTop + lineIndex * lineHeight;
+    editorEl.scrollTop = Math.max(0, target - editorEl.clientHeight / 3);
+    syncEditorScroll();
   }
 
   function updateFilenameLabel() {
@@ -1212,6 +1515,59 @@
     if (mode === "edit") await switchToView();
     await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 60)));
     window.print();
+  }
+
+  /* ══════════════════════════════════════════════════════
+     10b. EXPORTAR A HTML AUTÓNOMO (solo lectura, vía md-viewer.js)
+  ══════════════════════════════════════════════════════ */
+  function slugify(s) {
+    return (
+      s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "document"
+    );
+  }
+
+  function exportHtml() {
+    if (mode === "edit") currentRaw = editorEl.value;
+    if (!currentRaw.trim()) return;
+
+    const defaultTitle = currentFilename ? currentFilename.replace(/\.[^.]+$/, "") : "Documento";
+    const title = window.prompt("Título del documento exportado:", defaultTitle);
+    if (title === null) return; // cancelado
+    const finalTitle = title.trim() || defaultTitle;
+
+    // Mismo formato que index.html: markdown crudo en un
+    // <script type="text/markdown">, y md-viewer.js cargado al mismo nivel
+    // que el .html (no dentro de libs/) — así el exportado queda con la
+    // misma estructura de carpeta que ya usa md-render.js.
+    const html =
+      "<!DOCTYPE html>\n" +
+      '<html lang="es">\n' +
+      "<head>\n" +
+      '<meta charset="UTF-8">\n' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+      "<title>" + escapeHtml(finalTitle) + "</title>\n\n" +
+      '<script type="text/markdown">\n' +
+      currentRaw +
+      "\n</" + "script>\n\n" +
+      '<script src="https://htmltomd.netlify.app/md-viewer.js"></' + "script>\n" +
+      "</head>\n" +
+      "<body></body>\n" +
+      "</html>\n";
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = slugify(finalTitle) + ".html";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   /* ══════════════════════════════════════════════════════
