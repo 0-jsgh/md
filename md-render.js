@@ -18,6 +18,11 @@
  *     con md-viewer.js — un visor liviano sin edición, generado aparte —
  *     que debe copiarse junto al .html exportado (mismo nivel), junto con
  *     la carpeta libs/.
+ *   - "Open" ahora también acepta .html/.htm: si el archivo tiene un
+ *     <script type="text/markdown"> embebido (como los que exporta el
+ *     propio botón "HTML"), extrae ese markdown y lo carga para editarlo,
+ *     renombrando el archivo a .md para guardarlo. El HTML se parsea sin
+ *     ejecutar sus <script> (vía DOMParser).
  *
  * Novedades v6 (sobre v5):
  *   - Resaltado del editor ampliado: además de títulos y separadores, ahora
@@ -81,17 +86,17 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:          #0f1117;
-      --surface:     #1a1d27;
-      --border:      #2a2d3a;
-      --accent:      #7c6af7;
+      --bg:          #181818;
+      --surface:     #292929;
+      --border:      #383838;
+      --accent:      #7f7f7f;
       --accent2:     #56cfb2;
       --text:        #e2e4ef;
       --muted:       #8b90a8;
-      --code-bg:     #12141e;
-      --inline-bg:   #1e2130;
+      --code-bg:     #0b0b0b;
+      --inline-bg:   #181818;
       --heading:     #ffffff;
-      --toolbar-bg:  rgba(26, 29, 39, .92);
+      --toolbar-bg:  rgba(0, 0, 0, 0.92);
       --overlay-bg:  rgba(15, 17, 23, .88);
       --danger:      #f87171;
       --radius:      8px;
@@ -106,7 +111,7 @@
       --tok-comment:  #6b7280;
       --tok-string:   #a3e635;
       --tok-number:   #fb923c;
-      --tok-keyword:  #c084fc;
+      --tok-keyword:  #8000ff;
       --tok-literal:  #f472b6;
       --tok-function: #60a5fa;
       --tok-tag:      #f472b6;
@@ -114,15 +119,15 @@
       --tok-property: #5eead4;
       --tok-punct:    #8b90a8;
 
-      --task-done:        #22c55e;
-      --task-done-bg:     rgba(38, 217, 103, 0.1);
+      --task-done:        #cacaca;
+      --task-done-bg:     rgba(197, 198, 197, 0.1);
     }
 
     html[data-theme="light"] {
       --bg:          #f7f7fb;
       --surface:     #ffffff;
       --border:      #e1e3ea;
-      --accent:      #6d5bd0;
+      --accent:      #7f7f7f;
       --accent2:     #0e9488;
       --text:        #1d2029;
       --muted:       #6b7080;
@@ -149,8 +154,8 @@
       --tok-property: #0f766e;
       --tok-punct:    #6b7080;
 
-      --task-done:        #16a34a;
-      --task-done-bg:     rgba(22, 163, 74, .14);
+      --task-done:        #cacaca;
+      --task-done-bg:     rgba(40, 41, 40, 0.1);
     }
 
     html {
@@ -162,6 +167,8 @@
       -webkit-font-smoothing: antialiased;
       transition: background .15s, color .15s;
     }
+
+    
 
     body { padding: 0; background: var(--bg); }
 
@@ -354,6 +361,7 @@
     }
     .ln-active { color: var(--accent2); font-weight: 700; }
 
+    p {text-align: justify;}
     .hl-h1, .hl-h2, .hl-h3, .hl-h4, .hl-h5, .hl-h6 { font-weight: 700; }
     .hl-h1 { color: var(--hl-h1); }
     .hl-h2 { color: var(--hl-h2); }
@@ -582,10 +590,10 @@
     @media print {
       :root {
         --bg: #ffffff; --surface: #f4f4f6; --border: #dddfe6;
-        --accent: #5b3fd1; --accent2: #0e8f6d; --text: #1a1d27;
+        --accent: #5c5c5c; --accent2: #0e8f6d; --text: #1a1d27;
         --muted: #5b6072; --code-bg: #f6f6f8; --inline-bg: #eef0f5;
         --heading: #101218;
-        --task-done: #16a34a; --task-done-bg: rgba(22, 163, 74, .14);
+        --task-done: #cacaca; --task-done-bg: rgba(41, 41, 41, 0.1)
       }
       #md-toolbar, #md-editor-wrap, #md-drop-overlay, .md-floating-btns, #md-toc-panel { display: none !important; }
       #md-workspace, #md-workspace.editing { max-width: 100% !important; padding: 0 !important; }
@@ -609,7 +617,7 @@
   function setFavicon() {
     const svg =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
-      '<circle cx="32" cy="32" r="28" fill="%237c6af7"/>' +
+      '<circle cx="32" cy="32" r="28" fill="%23ffffff"/>' +
       "</svg>";
     let link = document.querySelector('link[rel="icon"]');
     if (!link) {
@@ -628,6 +636,19 @@
     const mdScript = document.querySelector('script[type="text/markdown"]');
     if (mdScript) return mdScript.textContent;
     const mdPre = document.getElementById("md-source");
+    if (mdPre) return mdPre.textContent;
+    return null;
+  }
+
+  // Extrae el markdown embebido de un .html externo (por ejemplo, uno
+  // exportado antes con el botón "HTML"): busca un
+  // <script type="text/markdown"> dentro de su contenido, sin ejecutar
+  // ningún script del archivo (DOMParser no corre <script>).
+  function extractMarkdownFromHtml(rawHtml) {
+    const doc = new DOMParser().parseFromString(rawHtml, "text/html");
+    const mdScript = doc.querySelector('script[type="text/markdown"]');
+    if (mdScript) return mdScript.textContent;
+    const mdPre = doc.getElementById("md-source");
     if (mdPre) return mdPre.textContent;
     return null;
   }
@@ -886,6 +907,36 @@
       return '<h' + depth + ' id="' + id + '">' + text + "</h" + depth + ">\n";
     };
 
+    renderer.link = function (token, title, text) {
+      // Compatibilidad con dos firmas de marked:
+      //  - v5+: link(token) donde token = { href, title, text/tokens }
+      //  - v4-: link(href, title, text) con "text" ya renderizado
+      let href, linkTitle, innerHtml;
+      if (token !== null && typeof token === "object") {
+        href = token.href;
+        linkTitle = token.title;
+        innerHtml = this && this.parser && token.tokens ? this.parser.parseInline(token.tokens) : token.text;
+      } else {
+        href = token;
+        linkTitle = title;
+        innerHtml = text;
+      }
+      innerHtml = innerHtml || "";
+
+      // Sintaxis extendida: [Texto | #121212](url) o [Texto | red](url)
+      // → color del texto del enlace (hex o nombre de color CSS).
+      let color = null;
+      const m = innerHtml.match(/^([\s\S]*)\|\s*([#a-zA-Z0-9]+)\s*$/);
+      if (m && /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(m[2].trim())) {
+        innerHtml = m[1].trim();
+        color = m[2].trim();
+      }
+
+      const titleAttr = linkTitle ? ' title="' + escapeAttr(linkTitle) + '"' : "";
+      const styleAttr = color ? ' style="color:' + escapeAttr(color) + ';"' : "";
+      return '<a href="' + escapeAttr(href || "") + '"' + titleAttr + styleAttr + ">" + innerHtml + "</a>";
+    };
+
     renderer.image = function (token, title, text) {
       // Compatibilidad con dos firmas de marked:
       //  - v5+: image(token) donde token = { href, title, text }
@@ -1028,7 +1079,7 @@
     toolbar.id = "md-toolbar";
     toolbar.innerHTML = `
       <div class="md-toolbar-group md-toolbar-left">
-        <button id="md-open-btn" class="md-btn" type="button">Open.md</button>
+        <button id="md-open-btn" class="md-btn" type="button">Open</button>
         <button id="md-toggle-btn" class="md-btn" type="button" disabled>Edit</button>
       </div>
       <span class="md-filename" id="md-filename"></span>
@@ -1037,7 +1088,7 @@
         <button id="md-export-btn" class="md-btn" type="button" disabled>PDF</button>
         <button id="md-export-html-btn" class="md-btn" type="button" disabled>HTML</button>
       </div>
-      <input type="file" id="md-file-input" accept=".md,.markdown,.mdown,.mkd,text/markdown,text/plain" />
+      <input type="file" id="md-file-input" accept=".md,.markdown,.mdown,.mkd,.html,.htm,text/markdown,text/plain,text/html" />
     `;
     document.body.appendChild(toolbar);
 
@@ -1071,7 +1122,7 @@
 
     const overlay = document.createElement("div");
     overlay.id = "md-drop-overlay";
-    overlay.innerHTML = `<span>⬇️ Soltá el archivo .md para abrirlo</span>`;
+    overlay.innerHTML = `<span>⬇️ Soltá el archivo .md o .html para abrirlo</span>`;
     document.body.appendChild(overlay);
     dropOverlayEl = overlay;
 
@@ -1122,6 +1173,11 @@
     editorEl.addEventListener("scroll", syncEditorScroll);
     editorEl.addEventListener("click", updateLineNumbers);
     editorEl.addEventListener("keyup", updateLineNumbers);
+    if (window.ResizeObserver) {
+      new ResizeObserver(updateLineNumbers).observe(editorWrapEl);
+    } else {
+      window.addEventListener("resize", updateLineNumbers);
+    }
     editorEl.addEventListener("keydown", handleEditorTabKey);
 
     document.addEventListener("keydown", (e) => {
@@ -1269,9 +1325,21 @@
   }
 
   function openFile(file) {
+    const isHtml = /\.(html?|htm)$/i.test(file.name);
     const reader = new FileReader();
     reader.onload = () => {
-      loadDocument(String(reader.result), file.name);
+      const raw = String(reader.result);
+      if (isHtml) {
+        const extracted = extractMarkdownFromHtml(raw);
+        if (extracted === null) {
+          contentEl.innerHTML = `<div class="md-empty"><div class="md-empty-icon"></div><h2>No markdown finding</h2><p>The file <strong>${escapeHtml(file.name)}</strong> has not a &lt;script type="text/markdown"&gt;.</p></div>`;
+          return;
+        }
+        const mdName = file.name.replace(/\.(html?|htm)$/i, ".md");
+        loadDocument(extracted, mdName);
+        return;
+      }
+      loadDocument(raw, file.name);
     };
     reader.onerror = () => {
       contentEl.innerHTML = `<div class="md-empty"><div class="md-empty-icon">⚠️</div><h2>No se pudo leer el archivo</h2><p>${escapeHtml(String(reader.error))}</p></div>`;
@@ -1284,7 +1352,7 @@
       <div class="md-empty">
         <div class="md-empty-icon">📄</div>
         <h2>Ningún documento cargado</h2>
-        <p>Hacé clic en <strong>«Open»</strong> arriba, arrastrá y soltá un archivo Markdown, o hacé clic en <strong>«Edit»</strong> para empezar uno nuevo desde cero.</p>
+        <p>Hacé clic en <strong>«Open»</strong> arriba, arrastrá y soltá un archivo Markdown (o un .html exportado con este mismo botón), o hacé clic en <strong>«Edit»</strong> para empezar uno nuevo desde cero.</p>
       </div>`;
     filenameEl.innerHTML = "";
     document.title = DEFAULT_TITLE;
@@ -1402,22 +1470,60 @@
     linenumbersEl.scrollTop = editorEl.scrollTop;
   }
 
+  let lnMeasureEl = null;
+  function getLnMeasureEl() {
+    if (!lnMeasureEl) {
+      lnMeasureEl = document.createElement("div");
+      lnMeasureEl.style.cssText =
+        "position:absolute; visibility:hidden; height:auto; top:0; left:-9999px; " +
+        "white-space:pre-wrap; word-wrap:break-word; box-sizing:border-box; margin:0; padding:0;";
+      document.body.appendChild(lnMeasureEl);
+    }
+    return lnMeasureEl;
+  }
+
+  // Devuelve, para cada línea lógica, cuántas filas visuales ocupa al hacer
+  // word-wrap dentro del textarea (mínimo 1). Así el gutter puede dejar en
+  // blanco las filas de continuación en vez de numerarlas.
+  function getWrappedRowCounts(lines) {
+    const el = getLnMeasureEl();
+    const cs = getComputedStyle(editorEl);
+    el.style.fontFamily = cs.fontFamily;
+    el.style.fontSize = cs.fontSize;
+    el.style.fontWeight = cs.fontWeight;
+    el.style.letterSpacing = cs.letterSpacing;
+    el.style.tabSize = cs.tabSize;
+    el.style.width =
+      editorEl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + "px";
+    const lineHeight = parseFloat(cs.lineHeight) || 24;
+
+    return lines.map((line) => {
+      el.textContent = line.length ? line : "\u00A0";
+      return Math.max(1, Math.round(el.scrollHeight / lineHeight));
+    });
+  }
+
   function updateLineNumbers() {
-    const count = (editorEl.value.match(/\n/g) || []).length + 1;
+    const lines = editorEl.value.split("\n");
     const curLine = (editorEl.value.slice(0, editorEl.selectionStart || 0).match(/\n/g) || []).length;
 
-    let html = "";
-    for (let i = 0; i < count; i++) {
-      html += i === curLine ? '<span class="ln-active">' + (i + 1) + "</span>" : String(i + 1);
-      if (i < count - 1) html += "\n";
-    }
-    linenumbersEl.innerHTML = html;
-
-    const digits = String(count).length;
+    // Ancho del gutter primero (depende solo de la cantidad de líneas), para
+    // que la medición de word-wrap use el ancho final del textarea.
+    const digits = String(lines.length).length;
     const gutterWidth = Math.max(2.4, digits * 0.62 + 1.8) + "em";
     linenumbersEl.style.width = gutterWidth;
     highlightEl.style.left = gutterWidth;
     editorEl.style.left = gutterWidth;
+
+    const rowCounts = getWrappedRowCounts(lines);
+
+    let html = "";
+    for (let i = 0; i < lines.length; i++) {
+      html += i === curLine ? '<span class="ln-active">' + (i + 1) + "</span>" : String(i + 1);
+      for (let r = 1; r < rowCounts[i]; r++) html += "\n"; // filas de continuación: en blanco
+      if (i < lines.length - 1) html += "\n";
+    }
+    linenumbersEl.innerHTML = html;
   }
 
   /* ─── Navegación entre títulos (TOC): extracción, panel y salto ─── */
