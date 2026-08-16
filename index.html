@@ -9,7 +9,6 @@
 # md-render.js — Offline Demo
 
 To use `md-render.js` in any HTML page, include:
-
 ```html
 <script src="https://htmltomd.netlify.app/md-render.js"></ script>
 ```
@@ -45,7 +44,18 @@ Regular paragraph with **bold**, *italic*, and `inline code`.
 
 ---
 
+## Links
+
+Regular link: [md-render.js on GitHub](https://github.com)
+
+Colored link (hex): [Danger zone | #f87171](https://example.com)
+
+Colored link (named color): [Success | limegreen](https://example.com)
+
+---
+
 ![Image description](img/img.png)
+
 ![Wordcraft](https://imgs.search.brave.com/on0VmKoid0tsGbJrghZNJ6U4-XvZ3oNUpwH71Mj5BbM/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9pbWFn/ZXMuc3RlYW11c2Vy/Y29udGVudC5jb20v/dWdjLzI0OTkwMDQ1/OTMyNjk2NzUzNTEv/MzY3NDJCRTI3QTZF/M0E2Q0IyOUE2MTdB/MDg1MkYwOUY4MzBF/MEU0RC8_aW13PTEw/MCZpbWg9NTYmaW1h/PWZpdCZpbXBvbGlj/eT1MZXR0ZXJib3gm/aW1jb2xvcj0jMDAw/MDAwJmxldHRlcmJv/eD10cnVl)
 
 ## Code
@@ -112,7 +122,9 @@ $$f(x \mid \mu, \sigma^2) = \frac{1}{\sqrt{2\pi\sigma^2}}\, \exp\!\left(-\frac{(
 - [x] Full Markdown support (local marked.js)
 - [x] Inline and block LaTeX (local KaTeX)
 - [x] Local KaTeX fonts (WOFF2)
-- [ ] Color syntax highlighting (coming in the next version)
+- [x] Color syntax highlighting
+- [x] Custom link color: `[text | #hex or name](url)`
+- [x] Open exported `.html` files back into the editor
   </script>
 
   <script src="md-render.js"></script>
