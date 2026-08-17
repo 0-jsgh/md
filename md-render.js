@@ -335,7 +335,9 @@
       resize: none;
       overflow: auto;
       outline: none;
+      scrollbar-width: none;
     }
+    #md-editor::-webkit-scrollbar { display: none; }
 
     #md-linenumbers {
       position: absolute;
@@ -410,7 +412,7 @@
     h1, h2, h3, h4, h5, h6 {
       font-weight: 700;
       line-height: 1.25;
-      margin-top: 2.2em;
+      margin-top: 1em;
       margin-bottom: .6em;
       color: var(--heading);
       letter-spacing: -.02em;
@@ -563,6 +565,16 @@
       border: 1px solid var(--border);
       display: block;
       margin: 1.5em auto;
+    }
+
+    .md-img-figure { margin: 1.5em auto; max-width: 100%; }
+    .md-img-figure img { margin: 0 auto .5em; }
+    .md-img-figure figcaption {
+      text-align: center;
+      font-style: italic;
+      font-size: .82em;
+      color: var(--muted);
+      line-height: 1.4;
     }
 
     input[type="checkbox"] { accent-color: var(--accent); margin-right: .45em; }
@@ -953,17 +965,33 @@
       }
       altText = altText || "";
 
-      // Sintaxis extendida: ![Descripción | 100](ruta) → ancho en px
+      // Sintaxis extendida: ![Descripción | 100 | #color](ruta)
+      //  - Un segmento numérico  → ancho en px.
+      //  - Un segmento hex/nombre → color del caption.
+      // Ambos segmentos son opcionales y el orden entre ellos no importa.
+      const parts = altText.split("|").map((p) => p.trim());
+      const caption = parts[0] || "";
       let width = null;
-      const m = altText.match(/^([\s\S]*)\|\s*(\d+)\s*$/);
-      if (m) {
-        altText = m[1].trim();
-        width = m[2];
+      let color = null;
+      for (let i = 1; i < parts.length; i++) {
+        if (/^\d+$/.test(parts[i])) width = parts[i];
+        else if (/^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(parts[i])) color = parts[i];
       }
 
       const styleAttr = width ? ' style="width:' + width + 'px;"' : "";
       const titleAttr = imgTitle ? ' title="' + escapeAttr(imgTitle) + '"' : "";
-      return '<img src="' + escapeAttr(href || "") + '" alt="' + escapeAttr(altText) + '"' + titleAttr + styleAttr + ">";
+      const img =
+        '<img src="' + escapeAttr(href || "") + '" alt="' + escapeAttr(caption) + '"' + titleAttr + styleAttr + ">";
+
+      if (!caption) return img; // sin descripción → imagen sola, sin caption visible
+
+      const capStyleAttr = color ? ' style="color:' + escapeAttr(color) + ';"' : "";
+      return (
+        '<figure class="md-img-figure">' +
+        img +
+        "<figcaption" + capStyleAttr + ">" + escapeHtml(caption) + "</figcaption>" +
+        "</figure>"
+      );
     };
 
     marked.use({ renderer, gfm: true, breaks: false });
